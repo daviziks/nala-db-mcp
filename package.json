@@ -1,0 +1,46 @@
+{
+  "name": "nala-db-mcp",
+  "module": "index.ts",
+  "type": "module",
+  "description": "A MCP for querying databases using Bun SQL",
+  "version": "1.0.0",
+  "engines": {
+    "bun": ">=1.3.1"
+  },
+  "keywords": [
+    "mcp",
+    "database",
+    "bun",
+    "sql",
+    "query",
+    "sqlite",
+    "postgres",
+    "mysql",
+    "mssql"
+  ],
+  "author": "Davi Oliveira <davioliveira.java@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daviziks/nala-db-mcp.git"
+  },
+  "scripts": {
+    "check": "bunx biome check --write",
+    "start": "bun run index.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.3",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.0",
+    "@types/mssql": "^9.1.8",
+    "connection-string": "^5.0.0",
+    "mssql": "^12.0.0",
+    "zod": "^3"
+  }
+}
