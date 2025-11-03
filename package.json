@@ -3,7 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "description": "A MCP for querying databases using Bun SQL",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "bin": {
     "nala-db-mcp": "./index.ts"
   },
