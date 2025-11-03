@@ -4,6 +4,9 @@
   "type": "module",
   "description": "A MCP for querying databases using Bun SQL",
   "version": "1.0.0",
+  "bin": {
+    "nala-db-mcp": "./index.ts"
+  },
   "engines": {
     "bun": ">=1.3.1"
   },
