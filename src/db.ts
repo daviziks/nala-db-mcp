@@ -1,8 +1,12 @@
 import { SQL } from "bun";
 import { ConnectionString } from "connection-string";
 import sqlServer from "mssql";
+import z from "zod";
 
 type SupportedDatabaseTypes = "sqlite" | "mysql" | "postgres" | "mssql";
+
+export const forbiddenDml =
+  /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE|DENY)\b/i;
 
 // Loads DATABASE_URL environment variable and returns a database connection
 const loadConnectionStringFromEnv = (): string => {
@@ -27,6 +31,13 @@ const getDatabaseType = (connectionString: string): SupportedDatabaseTypes => {
   }
 };
 
+const querySchema = z
+  .string()
+  .min(1)
+  .refine((query) => !forbiddenDml.test(query), {
+    message: "Query must not be a destructive/update query",
+  });
+
 type QueryRunner = {
   query: (query: string) => Promise<{
     // biome-ignore lint/suspicious/noExplicitAny: we don't know the type of the rows
@@ -46,7 +57,8 @@ export const getQueryRunner = async (): Promise<QueryRunner> => {
     const database = new SQL(connectionString, { readonly: true });
     return {
       query: async (query: string) => {
-        const result = await database`${query}`;
+        querySchema.parse(query);
+        const result = await database.unsafe(query);
         await database.close();
         return {
           // biome-ignore lint/suspicious/noExplicitAny: we don't know the type of the rows
@@ -71,6 +83,7 @@ export const getQueryRunner = async (): Promise<QueryRunner> => {
 
   return {
     query: async (query: string) => {
+      querySchema.parse(query);
       const result = await sql.query(query);
       await sql.close();
       return {

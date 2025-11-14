@@ -287,3 +287,250 @@ describe("getQueryRunner() - QueryRunner interface", () => {
     }
   });
 });
+
+describe("getQueryRunner() - Query error handling", () => {
+  let originalEnv: string | undefined;
+  const testDbPath = "/tmp/nala-test-errors.db";
+
+  beforeEach(async () => {
+    originalEnv = process.env.DATABASE_URL;
+
+    // Create a test SQLite database with some data
+    const { Database } = await import("bun:sqlite");
+    const db = new Database(testDbPath);
+    db.run(
+      "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)",
+    );
+    db.run("INSERT INTO test_table (id, name) VALUES (1, 'test')");
+    db.close();
+  });
+
+  afterEach(async () => {
+    if (originalEnv !== undefined) {
+      process.env.DATABASE_URL = originalEnv;
+    } else {
+      delete process.env.DATABASE_URL;
+    }
+
+    // Clean up test database
+    try {
+      const fs = await import("node:fs");
+      fs.unlinkSync(testDbPath);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  test("should handle invalid SQL syntax error", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT * FROM invalid_syntax WHERE"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should handle query on non-existent table", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT * FROM non_existent_table"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should handle malformed SQL query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(runner.query("INVALID SQL SYNTAX HERE"));
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should handle query with incorrect column references", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT non_existent_column FROM test_table"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should successfully execute valid query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT * FROM test_table WHERE id = 1"),
+    );
+
+    expect(error).toBeNull();
+    expect(result).toBeDefined();
+    expect(result?.rows).toBeDefined();
+  });
+
+  test("should reject INSERT query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("INSERT INTO test_table (name) VALUES ('test')"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should reject UPDATE query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("UPDATE test_table SET name = 'test' WHERE id = 1"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should reject DELETE query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("DELETE FROM test_table WHERE id = 1"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should reject DROP query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(runner.query("DROP TABLE test_table"));
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+});
+
+describe("Forbidden DML validation", () => {
+  const forbiddenDml =
+    /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE|DENY)\b/i;
+
+  test("should reject INSERT statements", () => {
+    const query = "INSERT INTO users (name) VALUES ('test')";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject UPDATE statements", () => {
+    const query = "UPDATE users SET name = 'test' WHERE id = 1";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject DELETE statements", () => {
+    const query = "DELETE FROM users WHERE id = 1";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject TRUNCATE statements", () => {
+    const query = "TRUNCATE TABLE users";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject ALTER statements", () => {
+    const query = "ALTER TABLE users ADD COLUMN email VARCHAR(255)";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject DROP statements", () => {
+    const query = "DROP TABLE users";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject CREATE statements", () => {
+    const query = "CREATE TABLE users (id INT PRIMARY KEY)";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject GRANT statements", () => {
+    const query = "GRANT SELECT ON users TO public";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject REVOKE statements", () => {
+    const query = "REVOKE SELECT ON users FROM public";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject DENY statements", () => {
+    const query = "DENY SELECT ON users TO public";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should accept SELECT statements", () => {
+    const query = "SELECT * FROM users WHERE id = 1";
+    expect(forbiddenDml.test(query)).toBe(false);
+  });
+
+  test("should accept SELECT with JOIN", () => {
+    const query =
+      "SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id";
+    expect(forbiddenDml.test(query)).toBe(false);
+  });
+
+  test("should accept SELECT with subquery", () => {
+    const query =
+      "SELECT * FROM users WHERE id IN (SELECT user_id FROM orders)";
+    expect(forbiddenDml.test(query)).toBe(false);
+  });
+
+  test("should be case insensitive for INSERT", () => {
+    const query = "insert into users (name) values ('test')";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should be case insensitive for UPDATE", () => {
+    const query = "update users set name = 'test'";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should be case insensitive for DELETE", () => {
+    const query = "delete from users";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject queries with forbidden keywords in middle", () => {
+    const query = "SELECT * FROM users; DELETE FROM users";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should reject CREATE even with spaces", () => {
+    const query = "  CREATE   TABLE   users  ";
+    expect(forbiddenDml.test(query)).toBe(true);
+  });
+
+  test("should not reject words containing forbidden keywords", () => {
+    // "inserted" contains "insert" but is not the keyword
+    const query = "SELECT inserted_at FROM users";
+    expect(forbiddenDml.test(query)).toBe(false);
+  });
+
+  test("should not reject column names with forbidden keywords", () => {
+    const query = "SELECT created_by, updated_by FROM users";
+    expect(forbiddenDml.test(query)).toBe(false);
+  });
+});

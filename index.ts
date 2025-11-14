@@ -2,7 +2,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import z from "zod";
-import { arrayToCsv, getQueryRunner, to } from "./src/db";
+// biome-ignore lint/correctness/noUnusedImports: forbiddenDml is used in inputSchema refine
+import { arrayToCsv, forbiddenDml, getQueryRunner, to } from "./src/db";
 
 const server = new McpServer({
   name: "nala-db-mcp",
@@ -10,9 +11,6 @@ const server = new McpServer({
   title: "Nala Database MCP",
   description: "A MCP for querying databases",
 });
-
-const forbiddeDml =
-  /\b(?:INSERT|UPDATE|DELETE|TRUNCATE|ALTER|DROP|CREATE|GRANT|REVOKE|DENY)\b/i;
 
 const inputSchema = z.object({
   query: z
@@ -43,7 +41,18 @@ server.registerTool(
         ],
       };
     }
-    const result = await queryRunner.query(input.query);
+    const [result, queryError] = await to(queryRunner.query(input.query));
+    if (queryError || !result) {
+      return {
+        isError: true,
+        content: [
+          {
+            text: `Failed to execute query: ${queryError}`,
+            type: "text",
+          },
+        ],
+      };
+    }
     return {
       content: [
         {
