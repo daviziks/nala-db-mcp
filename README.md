@@ -10,13 +10,45 @@ A Model Context Protocol (MCP) server for querying databases. Supports SQLite, P
 - **CSV Output**: Query results returned in CSV format
 - **Environment-Based Configuration**: Connection via `DATABASE_URL` environment variable
 
-## Installation
+## Usage
+
+You can use this MCP server with any MCP client, such as Cursor or Claude Desktop.
+
+### Configuration in Cursor
+
+Add the following configuration to your MCP settings file (typically in your Cursor settings or `.cursorrules`):
+
+```json
+{
+  "mcpServers": {
+    "nala-db-mcp": {
+      "command": "bunx nala-db-mcp",
+      "env": {
+        "DATABASE_URL": "mssql://sa:test@localhost:1433/test"
+      }
+    }
+  }
+}
+```
+
+Replace the `DATABASE_URL` value with your database connection string:
+
+- **SQLite**: `sqlite://path/to/database.db`
+- **PostgreSQL**: `postgres://user:password@localhost:5432/dbname`
+- **MySQL**: `mysql://user:password@localhost:3306/dbname`
+- **MS SQL Server**: `mssql://user:password@localhost:1433/dbname`
+
+Once configured, the MCP server will be available in your Cursor environment, and you can use the `run-query` tool to execute read-only SQL queries.
+
+## Usage (Local)
+
+For local development or custom integrations, you can install and run the server directly.
+
+### Installation
 
 ```bash
 bun install
 ```
-
-## Usage
 
 ### Configuration
 
