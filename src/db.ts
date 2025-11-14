@@ -46,7 +46,7 @@ export const getQueryRunner = async (): Promise<QueryRunner> => {
     const database = new SQL(connectionString, { readonly: true });
     return {
       query: async (query: string) => {
-        const result = await database`${query}`;
+        const result = await database.unsafe(query);
         await database.close();
         return {
           // biome-ignore lint/suspicious/noExplicitAny: we don't know the type of the rows

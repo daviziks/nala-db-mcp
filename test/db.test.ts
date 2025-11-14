@@ -287,3 +287,96 @@ describe("getQueryRunner() - QueryRunner interface", () => {
     }
   });
 });
+
+describe("getQueryRunner() - Query error handling", () => {
+  let originalEnv: string | undefined;
+  const testDbPath = "/tmp/nala-test-errors.db";
+
+  beforeEach(async () => {
+    originalEnv = process.env.DATABASE_URL;
+
+    // Create a test SQLite database with some data
+    const { Database } = await import("bun:sqlite");
+    const db = new Database(testDbPath);
+    db.run(
+      "CREATE TABLE IF NOT EXISTS test_table (id INTEGER PRIMARY KEY, name TEXT)",
+    );
+    db.run("INSERT INTO test_table (id, name) VALUES (1, 'test')");
+    db.close();
+  });
+
+  afterEach(async () => {
+    if (originalEnv !== undefined) {
+      process.env.DATABASE_URL = originalEnv;
+    } else {
+      delete process.env.DATABASE_URL;
+    }
+
+    // Clean up test database
+    try {
+      const fs = await import("node:fs");
+      fs.unlinkSync(testDbPath);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  test("should handle invalid SQL syntax error", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT * FROM invalid_syntax WHERE"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should handle query on non-existent table", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT * FROM non_existent_table"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should handle malformed SQL query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(runner.query("INVALID SQL SYNTAX HERE"));
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should handle query with incorrect column references", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT non_existent_column FROM test_table"),
+    );
+
+    expect(result).toBeNull();
+    expect(error).toBeDefined();
+  });
+
+  test("should successfully execute valid query", async () => {
+    process.env.DATABASE_URL = `sqlite://${testDbPath}`;
+
+    const runner = await getQueryRunner();
+    const [result, error] = await to(
+      runner.query("SELECT * FROM test_table WHERE id = 1"),
+    );
+
+    expect(error).toBeNull();
+    expect(result).toBeDefined();
+    expect(result?.rows).toBeDefined();
+  });
+});

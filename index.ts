@@ -43,7 +43,18 @@ server.registerTool(
         ],
       };
     }
-    const result = await queryRunner.query(input.query);
+    const [result, queryError] = await to(queryRunner.query(input.query));
+    if (queryError || !result) {
+      return {
+        isError: true,
+        content: [
+          {
+            text: `Failed to execute query: ${queryError}`,
+            type: "text",
+          },
+        ],
+      };
+    }
     return {
       content: [
         {
