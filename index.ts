@@ -2,7 +2,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import z from "zod";
-// biome-ignore lint/correctness/noUnusedImports: forbiddenDml is used in inputSchema refine
 import { arrayToCsv, forbiddenDml, getQueryRunner, to } from "./src/db";
 
 const server = new McpServer({
@@ -17,7 +16,7 @@ const inputSchema = z.object({
     .string()
     .min(1)
     .describe("MUST NOT BE A DESTRUCTIVE/UPDATE QUERY")
-    .refine((query) => !forbiddeDml.test(query), {
+    .refine((query) => !forbiddenDml.test(query), {
       message: "Query must not be a destructive/update query",
     }),
 });
